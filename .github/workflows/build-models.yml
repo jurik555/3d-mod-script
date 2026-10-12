@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - drone_case.py
+      - requirements.txt
       - .github/workflows/build-models.yml
   workflow_dispatch:
 
@@ -12,23 +13,23 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
 
       - name: Install CadQuery
-        run: pip install cadquery
+        run: pip install -r requirements.txt
 
       - name: Generate STEP and STL
         run: python drone_case.py
 
       - name: Upload models
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: drone-case-models
           path: out/

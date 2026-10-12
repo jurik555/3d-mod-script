@@ -33,7 +33,7 @@
 3. Печать: Elegoo Neptune 4 (стол 225 × 225 × 265), PETG. Зазор на посадку 0.3 мм на сторону, термовставки M3.
 
 ## Скрипт
-- `drone_case.py`: все параметры в начале файла. Запуск: `python drone_case.py`. Результат: `out/*.step`, `out/*.stl`, `out/assembly_top.step`.
+- `drone_case.py`: все параметры в начале файла. Установка: `pip install -r requirements.txt`. Запуск: `python drone_case.py`. Результат: `out/*.step`, `out/*.stl`, `out/assembly_top.step`.
 - Детали: основание и крышка верхнего отсека (Pixhawk, Orange Pi, приёмник), ложемент батареи, кронштейн MTF-02P.
 - Параметры с пометкой «ИЗМЕРИТЬ» нужно сверить с реальными деталями.
 

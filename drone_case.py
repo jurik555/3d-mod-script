@@ -9,6 +9,7 @@
 Проверьте их штангенциркулем до печати.
 """
 
+import math
 from pathlib import Path
 
 import cadquery as cq
@@ -27,7 +28,16 @@ M3_CLEAR = 3.4       # сквозное отверстие под винт M3
 # Компоненты (Д x Ш x В)
 # ---------------------------------------------------------------------------
 PIXHAWK = (81.5, 50.0, 15.5)       # Pixhawk 2.4.8 (ИЗМЕРИТЬ, клоны отличаются)
-PIXHAWK_DAMPER_H = 4.0             # виброгасящий гель или поролон под Pixhawk
+# Виброразвязка из комплекта: две пластины на резиновых шарах.
+# Нижняя пластина крепится к основанию, Pixhawk клеится на верхнюю.
+DAMPER_PLATE = (100.0, 70.0, 1.5)  # нижняя (большая) пластина (ИЗМЕРИТЬ)
+DAMPER_HOLES = (90.0, 60.0)        # шаг крепёжных отверстий нижней пластины (ИЗМЕРИТЬ)
+DAMPER_BALL_H = 12.0               # высота резиновых шаров (ИЗМЕРИТЬ)
+DAMPER_TOP_T = 1.5                 # верхняя пластина
+DAMPER_BOSS_H = 3.0                # бобышки под нижнюю пластину, чтобы шары не касались основания
+PIXHAWK_TAPE = 1.0                 # двусторонний скотч или 3M-пена под Pixhawk
+PIXHAWK_DAMPER_H = (DAMPER_BOSS_H + DAMPER_PLATE[2] + DAMPER_BALL_H
+                    + DAMPER_TOP_T + PIXHAWK_TAPE)  # от основания до низа Pixhawk
 OPI = (65.0, 32.0, 1.6)            # Orange Pi Zero 3W, плата (ИЗМЕРИТЬ)
 OPI_HOLES = (58.0, 25.0)           # шаг отверстий платы (ИЗМЕРИТЬ)
 OPI_TOP_H = 14.0                   # высота деталей над платой с радиатором (ИЗМЕРИТЬ)
@@ -47,18 +57,19 @@ FRAME_HOLES_BOTTOM = [(-30, -20), (-30, 20), (30, -20), (30, 20)]  # нижня�
 # ---------------------------------------------------------------------------
 GAP = 4.0                                   # промежуток между компонентами
 PIXHAWK_POS = (0.0, 0.0)                    # Pixhawk в центре рамы (ЦТ)
-RX_POS = (PIXHAWK[0] / 2 + GAP + RX[1] / 2, 0.0)        # приёмник спереди, поперёк
-OPI_POS = (-(PIXHAWK[0] / 2 + GAP + OPI[1] / 2), 0.0)   # Orange Pi сзади, поперёк
+FC_ZONE = (max(PIXHAWK[0], DAMPER_PLATE[0]), max(PIXHAWK[1], DAMPER_PLATE[1]))
+RX_POS = (FC_ZONE[0] / 2 + GAP + RX[1] / 2, 0.0)        # приёмник спереди, поперёк
+OPI_POS = (-(FC_ZONE[0] / 2 + GAP + OPI[1] / 2), 0.0)   # Orange Pi сзади, поперёк
 
 BASE_T = 3.0            # толщина основания
-POCKET_WALL = 1.6       # бортик вокруг Pixhawk и приёмника
+POCKET_WALL = 1.6       # бортик вокруг приёмника
 POCKET_H = 5.0          # высота бортика
 CORNER_R = 6.0          # радиус скругления углов корпуса
 BOSS_D = 9.0            # бобышки под винты крышки
 CABLE_SLOT = (30.0, 12.0)  # прорезь под провода вниз к PDB
 
-BASE_L = PIXHAWK[0] + RX[1] + OPI[1] + 2 * GAP + 2 * (WALL + 8)
-BASE_W = max(PIXHAWK[1], OPI[0], RX[0]) + 2 * (WALL + 8)
+BASE_L = FC_ZONE[0] + RX[1] + OPI[1] + 2 * GAP + 2 * (WALL + 8)
+BASE_W = max(FC_ZONE[1], OPI[0], RX[0]) + 2 * (WALL + 8)
 
 COVER_INNER_H = max(
     PIXHAWK_DAMPER_H + PIXHAWK[2],
@@ -66,14 +77,19 @@ COVER_INNER_H = max(
     RX[2],
 ) + 6.0                 # запас на провода сверху
 COVER_TOP_T = 2.0
-GPS_MAST_D = 10.5       # отверстие под стойку GPS (ИЗМЕРИТЬ)
-GPS_MAST_POS = (-10.0, 0.0)
+# Стойка GPS M8N из комплекта ставится на крышку
+GPS_HOLDER_HOLES = (27.0, 27.0)  # шаг отверстий основания стойки (ИЗМЕРИТЬ)
+GPS_HOLDER_POS = (-20.0, 0.0)
+GPS_CABLE_D = 8.0                # отверстие под кабель GPS рядом со стойкой
+GPS_PAD_T = 3.0                  # утолщение крышки под стойкой изнутри
 ANTENNA_D = 4.0         # отверстия под антенны приёмника
 VENT_W, VENT_L, VENT_N = 2.5, 22.0, 6   # вентиляционные прорези над Orange Pi
 USB_CUT = (14.0, 9.0)   # окно под USB Pixhawk (Ш x В) в левой стенке (ИЗМЕРИТЬ)
 USB_X = -PIXHAWK[0] / 2 + 15.0          # положение USB вдоль X (ИЗМЕРИТЬ)
-SAFETY_D = 12.0         # отверстие под кнопку safety
+SAFETY_D = 12.0         # отверстие под кнопку safety (ИЗМЕРИТЬ корпус кнопки)
 SAFETY_POS = (25.0, 0.0)
+BUZZER_POS = (25.0, -22.0)  # отверстия для звука пищалки, сама пищалка внутри
+BUZZER_HOLE_D, BUZZER_N = 2.0, 7
 
 # ---------------------------------------------------------------------------
 # Ложемент батареи под нижней плитой
@@ -107,9 +123,21 @@ def make_base():
         .edges("|Z").fillet(CORNER_R)
     )
 
-    # Бортики-карманы под Pixhawk и приёмник (на липучке или геле)
+    # Бобышки с термовставками под нижнюю пластину виброразвязки Pixhawk
+    damper = corner_points(DAMPER_HOLES[0] + 2 * BOSS_D, DAMPER_HOLES[1] + 2 * BOSS_D, BOSS_D)
+    damper = [(PIXHAWK_POS[0] + x, PIXHAWK_POS[1] + y) for x, y in damper]
+    base = base.union(
+        cq.Workplane("XY").workplane(offset=BASE_T)
+        .pushPoints(damper).circle(BOSS_D / 2 - 1).extrude(DAMPER_BOSS_H)
+    )
+    base = base.cut(
+        cq.Workplane("XY").workplane(offset=BASE_T + DAMPER_BOSS_H - min(INSERT_H, DAMPER_BOSS_H + BASE_T - 1))
+        .pushPoints(damper).circle(INSERT_D / 2)
+        .extrude(min(INSERT_H, DAMPER_BOSS_H + BASE_T - 1))
+    )
+
+    # Бортик-карман под приёмник (на липучке)
     for (x, y), (l, w), rot in (
-        (PIXHAWK_POS, PIXHAWK[:2], 0),
         (RX_POS, RX[:2], 90),
     ):
         il, iw = l + 2 * FIT, w + 2 * FIT
@@ -154,7 +182,7 @@ def make_base():
     )
     base = base.cut(
         cq.Workplane("XY")
-        .center(PIXHAWK_POS[0] - PIXHAWK[0] / 2 - GAP / 2, 0)
+        .center(PIXHAWK_POS[0] - FC_ZONE[0] / 2 - GAP / 2, 0)
         .slot2D(CABLE_SLOT[0], CABLE_SLOT[1], angle=90)
         .extrude(BASE_T)
     )
@@ -196,8 +224,30 @@ def make_cover():
 
     top = cq.Workplane("XY").workplane(offset=COVER_INNER_H)
 
-    # Стойка GPS, кнопка safety, антенны приёмника
-    cover = cover.cut(top.center(*GPS_MAST_POS).circle(GPS_MAST_D / 2)
+    # Стойка GPS: утолщение изнутри, 4 отверстия M3 и отверстие под кабель
+    gps = [(GPS_HOLDER_POS[0] + x, GPS_HOLDER_POS[1] + y)
+           for x, y in corner_points(GPS_HOLDER_HOLES[0] * 2, GPS_HOLDER_HOLES[1] * 2,
+                                     GPS_HOLDER_HOLES[0] / 2)]
+    pad = GPS_HOLDER_HOLES[0] + 12
+    cover = cover.union(
+        cq.Workplane("XY").workplane(offset=COVER_INNER_H - GPS_PAD_T)
+        .center(*GPS_HOLDER_POS).rect(pad, pad).extrude(GPS_PAD_T)
+    )
+    cover = cover.cut(
+        cq.Workplane("XY").workplane(offset=COVER_INNER_H - GPS_PAD_T)
+        .pushPoints(gps).circle(M3_CLEAR / 2).extrude(GPS_PAD_T + COVER_TOP_T)
+    )
+    cover = cover.cut(
+        cq.Workplane("XY").workplane(offset=COVER_INNER_H - GPS_PAD_T)
+        .center(GPS_HOLDER_POS[0] - pad / 2 - GPS_CABLE_D / 2 - 1, GPS_HOLDER_POS[1])
+        .circle(GPS_CABLE_D / 2).extrude(GPS_PAD_T + COVER_TOP_T)
+    )
+
+    # Кнопка safety, пищалка, антенны приёмника
+    buzzer = [(BUZZER_POS[0] + 4 * math.cos(2 * math.pi * i / (BUZZER_N - 1)),
+               BUZZER_POS[1] + 4 * math.sin(2 * math.pi * i / (BUZZER_N - 1)))
+              for i in range(BUZZER_N - 1)] + [BUZZER_POS]
+    cover = cover.cut(top.pushPoints(buzzer).circle(BUZZER_HOLE_D / 2)
                       .extrude(COVER_TOP_T))
     cover = cover.cut(top.center(*SAFETY_POS).circle(SAFETY_D / 2)
                       .extrude(COVER_TOP_T))
